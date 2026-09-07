@@ -1,13 +1,19 @@
 import cv2
 import easyocr
 from ultralytics import YOLO
+from logger import init_logger, log_vehicle
+
+# Initialize CSV log file on startup
+init_logger()
 
 # 1. Load YOLOv8 model & EasyOCR reader (English)
 print("[INFO] Loading YOLOv8 and EasyOCR models...")
 model = YOLO("yolov8n.pt")
 reader = easyocr.Reader(["en"], gpu=False)  # Set gpu=True if you have CUDA setup
 
-VEHICLE_CLASSES = [2, 3, 5, 7]  # COCO IDs for cars, bikes, buses, trucks
+# COCO IDs mapping: 2=car, 3=motorcycle, 5=bus, 7=truck
+CLASS_NAMES = {2: "Car", 3: "Motorcycle", 5: "Bus", 7: "Truck"}
+VEHICLE_CLASSES = list(CLASS_NAMES.keys())
 VIDEO_PATH = "data/traffic.mp4"
 
 cap = cv2.VideoCapture(VIDEO_PATH)
@@ -17,7 +23,8 @@ if not cap.isOpened():
     exit()
 
 unique_vehicle_ids = set()
-processed_ocr_ids = set()  # Tracks vehicles we've already run OCR on to avoid lag
+logged_vehicle_ids = set()  # Set to track vehicles logged to CSV
+processed_ocr_ids = set()   # Tracks vehicles we've already run OCR on to avoid lag
 
 print("[INFO] Starting pipeline. Press 'q' or close window to exit.")
 
@@ -40,11 +47,14 @@ while cap.isOpened():
     if results[0].boxes is not None and results[0].boxes.id is not None:
         boxes = results[0].boxes.xyxy.cpu().numpy().astype(int)
         track_ids = results[0].boxes.id.cpu().numpy().astype(int)
+        class_ids = results[0].boxes.cls.cpu().numpy().astype(int)
         active_in_frame = len(track_ids)
 
-        for box, track_id in zip(boxes, track_ids):
+        for box, track_id, class_id in zip(boxes, track_ids, class_ids):
             unique_vehicle_ids.add(track_id)
             x1, y1, x2, y2 = box
+            vehicle_type = CLASS_NAMES.get(class_id, "Vehicle")
+            detected_text = "N/A"
 
             # Run OCR once per vehicle ID every 10 frames to keep playback smooth
             if track_id not in processed_ocr_ids and frame_count % 10 == 0:
@@ -56,10 +66,16 @@ while cap.isOpened():
                     ocr_results = reader.readtext(vehicle_crop, detail=0)
 
                     if ocr_results:
-                        detected_text = " ".join(ocr_results).strip()
-                        if len(detected_text) >= 3:  # Filter out noise
+                        text_candidate = " ".join(ocr_results).strip()
+                        if len(text_candidate) >= 3:  # Filter out noise
+                            detected_text = text_candidate
                             print(f"[OCR DETECTED] Vehicle ID #{track_id} -> Text: {detected_text}")
                             processed_ocr_ids.add(track_id)
+
+            # LOGGING LOGIC: Log to CSV as soon as a new vehicle is tracked
+            if track_id not in logged_vehicle_ids:
+                log_vehicle(vehicle_id=track_id, vehicle_class=vehicle_type, plate_text=detected_text)
+                logged_vehicle_ids.add(track_id)
 
     # Render bounding boxes and overlay on screen
     annotated_frame = results[0].plot()
