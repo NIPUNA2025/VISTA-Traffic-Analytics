@@ -1,10 +1,10 @@
 import cv2
 import easyocr
 from ultralytics import YOLO
-from logger import init_logger, log_vehicle
+from database import init_db, log_vehicle_to_db
 
-# Initialize CSV log file on startup
-init_logger()
+# Initialize SQLite database on startup
+init_db()
 
 # 1. Load YOLOv8 model & EasyOCR reader (English)
 print("[INFO] Loading YOLOv8 and EasyOCR models...")
@@ -23,12 +23,12 @@ if not cap.isOpened():
     exit()
 
 unique_vehicle_ids = set()
-logged_vehicle_ids = set()  # Set to track vehicles logged to CSV
+logged_vehicle_ids = set()  # Set to track vehicles logged to DB
 processed_ocr_ids = set()   # Tracks vehicles we've already run OCR on to avoid lag
 
 print("[INFO] Starting pipeline. Press 'q' or close window to exit.")
 
-# Skip frames to optimize OCR speed (OCR on every single frame is slow)
+# Skip frames to optimize OCR speed
 frame_count = 0
 
 while cap.isOpened():
@@ -72,9 +72,9 @@ while cap.isOpened():
                             print(f"[OCR DETECTED] Vehicle ID #{track_id} -> Text: {detected_text}")
                             processed_ocr_ids.add(track_id)
 
-            # LOGGING LOGIC: Log to CSV as soon as a new vehicle is tracked
+            # LOGGING LOGIC: Properly indented inside the vehicle loop
             if track_id not in logged_vehicle_ids:
-                log_vehicle(vehicle_id=track_id, vehicle_class=vehicle_type, plate_text=detected_text)
+                log_vehicle_to_db(vehicle_id=track_id, vehicle_class=vehicle_type, plate_text=detected_text)
                 logged_vehicle_ids.add(track_id)
 
     # Render bounding boxes and overlay on screen
