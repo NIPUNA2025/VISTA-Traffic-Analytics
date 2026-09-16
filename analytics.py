@@ -40,6 +40,19 @@ def search_by_license_plate(plate_query):
     conn.close()
     return records
 
+def get_vehicles_by_class(vehicle_class: str):
+    """Retrieves all vehicle entries belonging to a specific class."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT id, timestamp, vehicle_id, vehicle_class, license_plate 
+        FROM traffic_logs 
+        WHERE LOWER(vehicle_class) = LOWER(?)
+    """, (vehicle_class,))
+    records = cursor.fetchall()
+    conn.close()
+    return records
+
 if __name__ == "__main__":
     print("=== VISTA TRAFFIC ANALYTICS REPORT ===")
     print(f"Total Logged Detections: {get_total_vehicle_count()}")
