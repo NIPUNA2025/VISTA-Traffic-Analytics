@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: vista-traffic-engine
+    env: docker
+    plan: free
+    region: singapore
+    envVars:
+      - key: PORT
+        value: 8000
