@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  vista-api:
+    build: .
+    container_name: vista_traffic_engine
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./traffic_analytics.db:/app/traffic_analytics.db
+      - ./traffic_log.csv:/app/traffic_log.csv
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: always
