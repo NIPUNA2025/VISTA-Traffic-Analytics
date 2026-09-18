@@ -1,4 +1,5 @@
-from fastapi import FastAPI, HTTPException, Query
+import time
+from fastapi import FastAPI, HTTPException, Query, BackgroundTasks
 from analytics import (
     get_total_vehicle_count,
     get_vehicle_breakdown,
@@ -9,14 +10,20 @@ from analytics import (
 app = FastAPI(
     title="VISTA Traffic Analytics API",
     description="Backend AI & Data Pipeline Engine for Traffic Telemetry",
-    version="1.1"
+    version="1.2"
 )
 
 VALID_CLASSES = ["car", "truck", "bus", "motorcycle"]
 
+# Simulated background worker (simulating frame processing pipeline)
+def process_video_stream_task(video_path: str):
+    print(f"[BACKGROUND TASK STARTED] Processing video feed: {video_path}")
+    time.sleep(5)  # Simulates active video processing duration
+    print(f"[BACKGROUND TASK COMPLETED] Finished analyzing: {video_path}")
+
 @app.get("/")
 def read_root():
-    return {"message": "VISTA Engine Active", "version": "1.1"}
+    return {"message": "VISTA Engine Active", "version": "1.2"}
 
 @app.get("/api/v1/metrics/total")
 def read_total_vehicles():
@@ -31,7 +38,6 @@ def read_vehicle_breakdown():
 
 @app.get("/api/v1/vehicles/filter")
 def filter_by_class(v_class: str = Query(..., description="Vehicle type: Car, Truck, Bus, Motorcycle")):
-    """Filter detections strictly by vehicle class with validation."""
     if v_class.lower() not in VALID_CLASSES:
         raise HTTPException(
             status_code=400, 
@@ -68,3 +74,13 @@ def search_plate(plate: str = Query(..., min_length=1, description="License plat
         for row in results
     ]
     return {"status": "success", "query": plate, "matches": formatted}
+
+@app.post("/api/v1/pipeline/process-stream")
+def trigger_pipeline(background_tasks: BackgroundTasks, video_name: str = "traffic.mp4"):
+    """Triggers non-blocking background video processing."""
+    background_tasks.add_task(process_video_stream_task, f"data/{video_name}")
+    return {
+        "status": "queued",
+        "message": f"Inference job for '{video_name}' queued in background.",
+        "target": f"data/{video_name}"
+    }
